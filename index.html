@@ -333,6 +333,21 @@ footer a { color: var(--accent); text-decoration: none; }
 
       <div id="sugestaoAporte"></div>
     </div>
+
+    <!-- CALENDÁRIO VISUAL DA JORNADA -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-top:20px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,179,66,0.15);color:var(--gold);display:grid;place-items:center;font-weight:700;font-size:18px;">⏱</div>
+        <h3 style="font-size:20px;font-weight:700;letter-spacing:-0.015em;">Sua jornada até R$ 2.000/mês</h3>
+      </div>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:24px;">Cada marco mostra quando você passa a receber esse valor de renda passiva por mês. Premissas: aporte R$ 2.000/mês, DY médio de <span id="jornadaDY">9%</span>, crescimento dos dividendos de 4% ao ano.</p>
+
+      <div id="jornadaTimeline"></div>
+
+      <div style="margin-top:24px;padding:18px 20px;background:var(--bg-2);border-radius:10px;border-left:3px solid var(--gold);">
+        <div style="font-size:13px;color:var(--text-2);line-height:1.6;" id="jornadaInsight"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ PANEL: CARTEIRA ============ -->
@@ -504,75 +519,99 @@ async function atualizarCotacoes() {
   btn.classList.add('syncing');
   btn.querySelector('.label').textContent = 'Atualizando...';
 
-  try {
-    // BRAPI tem limite de tickers por requisição. Vamos dividir em lotes de 10.
-    const tickers = carteira.map(a => a.ticker);
-    const lotes = [];
-    for (let i = 0; i < tickers.length; i += 10) {
-      lotes.push(tickers.slice(i, i + 10));
-    }
+  const tickers = carteira.map(a => a.ticker);
+  let atualizados = 0;
+  let erros = [];
 
-    let atualizados = 0;
-    let erros = [];
+  // BRAPI plano grátis: 1 ticker por requisição. Plano pago: até 10/req.
+  // Estratégia: 1 por vez, com pequeno delay para não saturar
+  for (let i = 0; i < tickers.length; i++) {
+    const ticker = tickers[i];
+    btn.querySelector('.label').textContent = `Atualizando ${i+1}/${tickers.length}...`;
 
-    for (const lote of lotes) {
-      const url = `https://brapi.dev/api/quote/${lote.join(',')}?token=${brapiToken}`;
-      try {
-        const response = await fetch(url);
+    try {
+      const url = `https://brapi.dev/api/quote/${ticker}?token=${brapiToken}`;
+      const response = await fetch(url);
 
-        if (!response.ok) {
-          // 401 = token inválido, 429 = limite, etc
-          if (response.status === 401) throw new Error('Token inválido — verifique no botão ⚙');
-          if (response.status === 429) throw new Error('Limite da API atingido — tente novamente em alguns minutos');
-          if (response.status === 402) throw new Error('Recurso pago — alguns ativos exigem plano pago da BRAPI');
-          throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          erros.push(`${ticker}: token inválido`);
+          break; // se o token está inválido, para tudo
         }
+        if (response.status === 402) {
+          erros.push(`${ticker}: requer plano pago`);
+          continue;
+        }
+        if (response.status === 404) {
+          erros.push(`${ticker}: ticker não encontrado na BRAPI`);
+          continue;
+        }
+        if (response.status === 429) {
+          erros.push(`${ticker}: limite de requisições atingido`);
+          await new Promise(r => setTimeout(r, 2000)); // espera 2s
+          continue;
+        }
+        // Para qualquer outro erro (incluindo 400), pega a mensagem do servidor
+        let detalhes = '';
+        try {
+          const errData = await response.json();
+          detalhes = errData.message || errData.error || `HTTP ${response.status}`;
+        } catch {
+          detalhes = `HTTP ${response.status}`;
+        }
+        erros.push(`${ticker}: ${detalhes}`);
+        continue;
+      }
 
-        const data = await response.json();
-        if (data.error) throw new Error(data.message || 'Erro retornado pela API');
-        if (!data.results) throw new Error('Resposta sem dados');
+      const data = await response.json();
+      if (data.error) {
+        erros.push(`${ticker}: ${data.message || 'erro da API'}`);
+        continue;
+      }
 
-        data.results.forEach(r => {
-          const idx = carteira.findIndex(a => a.ticker === r.symbol);
-          if (idx >= 0 && r.regularMarketPrice && r.regularMarketPrice > 0) {
+      if (data.results && data.results.length > 0) {
+        const r = data.results[0];
+        if (r.regularMarketPrice && r.regularMarketPrice > 0) {
+          const idx = carteira.findIndex(a => a.ticker === ticker);
+          if (idx >= 0) {
             carteira[idx].atual = r.regularMarketPrice;
             atualizados++;
           }
-        });
-      } catch (e) {
-        erros.push(e.message);
+        } else {
+          erros.push(`${ticker}: sem cotação válida`);
+        }
       }
+    } catch (e) {
+      // CORS, rede, etc
+      erros.push(`${ticker}: ${e.message}`);
     }
 
-    if (atualizados === 0) {
-      const motivo = erros[0] || 'Possíveis causas: token inválido, abrir o arquivo direto sem servidor (CORS), ou conexão.';
-      throw new Error(motivo);
+    // Pequeno delay entre requisições para não saturar a BRAPI (250ms)
+    if (i < tickers.length - 1) {
+      await new Promise(r => setTimeout(r, 250));
     }
+  }
 
+  btn.classList.remove('syncing');
+  btn.querySelector('.label').textContent = 'Atualizar cotações';
+
+  if (atualizados > 0) {
     lastUpdate = new Date().toISOString();
     salvarCarteira();
     salvarLastUpdate();
-
-    btn.classList.remove('syncing');
-    btn.querySelector('.label').textContent = 'Atualizar cotações';
-    if (erros.length > 0) {
-      showToast(`${atualizados} ativos atualizados, ${erros.length} lote(s) com erro`, 'success');
-    } else {
-      showToast(`${atualizados} cotações atualizadas com sucesso`, 'success');
-    }
     renderTudo();
 
-  } catch (err) {
-    btn.classList.remove('syncing');
-    btn.querySelector('.label').textContent = 'Atualizar cotações';
-
-    // Mensagem de erro detalhada
-    let msg = err.message;
-    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-      msg = 'Falha de rede. Se você abriu o arquivo direto (file://), o navegador bloqueia chamadas externas por segurança. Solução: edite os preços manualmente na aba "Carteira" (clica no valor, digita, Enter).';
+    if (erros.length === 0) {
+      showToast(`${atualizados} cotações atualizadas com sucesso`, 'success');
+    } else {
+      showToast(`${atualizados} atualizados · ${erros.length} com erro (veja Console)`, 'success');
+      console.warn('Erros na atualização:', erros);
     }
-    showToast(msg, 'error');
-    console.error('Erro na atualização:', err);
+  } else {
+    // Nenhum atualizado, mostra o primeiro erro
+    const primeiroErro = erros[0] || 'Erro desconhecido';
+    showToast(`Erro: ${primeiroErro}`, 'error');
+    console.error('Todos os erros:', erros);
   }
 }
 
@@ -1048,6 +1087,10 @@ function renderMetasFIIs() {
 
 function renderSugestaoAporte() {
   const aporte = parseFloat(document.getElementById('aporteInput').value) || 0;
+
+  // ATUALIZAR JORNADA quando o aporte muda
+  renderJornada(aporte);
+
   if (aporte <= 0) {
     document.getElementById('sugestaoAporte').innerHTML = '<p style="color:var(--text-3);font-size:13px;">Digite o valor do seu aporte.</p>';
     return;
@@ -1156,7 +1199,152 @@ function renderSugestaoAporte() {
   `;
 }
 
-// ============ RENDERIZAR TUDO ============
+// ============ JORNADA VISUAL ATÉ R$ 2.000/MÊS ============
+function calcularMarcos(patrimInicial, dyAnual, aporteMensal, marcos) {
+  const taxaMensal = dyAnual / 12;
+  const gDiv = 0.04; // crescimento dos dividendos
+  let capital = patrimInicial;
+  let meses = 0;
+  const atingidos = {};
+
+  while (meses < 240 && Object.keys(atingidos).length < marcos.length) {
+    const fatorCresc = Math.pow(1 + gDiv, meses / 12);
+    const rendaMes = capital * taxaMensal * fatorCresc;
+
+    for (const alvo of marcos) {
+      if (!atingidos[alvo] && rendaMes >= alvo) {
+        atingidos[alvo] = { meses, capital, renda: rendaMes };
+      }
+    }
+
+    capital = capital * (1 + taxaMensal) + aporteMensal;
+    meses++;
+  }
+
+  return atingidos;
+}
+
+function renderJornada(aporteMensal) {
+  const rv = carteira.filter(a => a.tipo !== 'etf');
+  const patrim = rv.reduce((s, a) => s + a.qtd * a.atual, 0);
+  const renda = rv.reduce((s, a) => s + a.qtd * a.div, 0);
+  const dyAnual = patrim > 0 ? renda / patrim : 0.09;
+
+  // Renda mensal atual (recorrente)
+  let rendaMensalAtual = 0;
+  rv.forEach(a => { rendaMensalAtual += divMensalEstimado(a) * a.qtd; });
+
+  const marcos = [500, 750, 1000, 1250, 1500, 1750, 2000];
+  const atingidos = calcularMarcos(patrim, dyAnual, aporteMensal, marcos);
+
+  document.getElementById('jornadaDY').textContent = pct(dyAnual * 100);
+
+  // Data atual para construir a timeline
+  const hoje = new Date();
+  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+  const html = marcos.map((alvo, i) => {
+    const dados = atingidos[alvo];
+    const jaAtingido = rendaMensalAtual >= alvo;
+
+    let statusContent;
+    let cardStyle = '';
+    let dotColor = 'var(--border-strong)';
+    let textColor = 'var(--text-2)';
+
+    if (jaAtingido) {
+      // Marco já alcançado
+      statusContent = `
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--success);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">✓ Conquistado</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">Você já recebe ${fmt(rendaMensalAtual)}/mês</div>
+      `;
+      dotColor = 'var(--success)';
+      textColor = 'var(--text)';
+      cardStyle = 'background:linear-gradient(135deg, rgba(74,222,128,0.08), transparent);';
+    } else if (dados) {
+      const futuro = new Date(hoje);
+      futuro.setMonth(futuro.getMonth() + dados.meses);
+      const mesNome = meses[futuro.getMonth()];
+      const ano = futuro.getFullYear();
+      const anosCalc = Math.floor(dados.meses / 12);
+      const mesesResto = dados.meses % 12;
+
+      let tempoText;
+      if (dados.meses < 12) tempoText = `${dados.meses} mês${dados.meses > 1 ? 'es' : ''}`;
+      else if (mesesResto === 0) tempoText = `${anosCalc} ano${anosCalc > 1 ? 's' : ''}`;
+      else tempoText = `${anosCalc}a ${mesesResto}m`;
+
+      statusContent = `
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Em ${tempoText}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">${mesNome.charAt(0).toUpperCase() + mesNome.slice(1)} de ${ano} · capital R$ ${(dados.capital/1000).toFixed(0)}k</div>
+      `;
+
+      // Cor do dot baseada na proximidade
+      if (dados.meses <= 12) dotColor = 'var(--accent)';
+      else if (dados.meses <= 36) dotColor = 'var(--warn)';
+      else dotColor = 'var(--border-strong)';
+
+      textColor = 'var(--text)';
+    } else {
+      statusContent = `
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;">Inalcançável neste ritmo</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px;">Considere aumentar o aporte</div>
+      `;
+      dotColor = 'var(--danger)';
+    }
+
+    const ehMetaFinal = alvo === 2000;
+
+    return `
+      <div style="display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:16px 18px;margin-bottom:8px;border-radius:12px;border:1px solid ${ehMetaFinal ? 'var(--accent)' : 'var(--border)'};${cardStyle}${ehMetaFinal ? 'background:linear-gradient(135deg, rgba(197,255,74,0.08), transparent);' : ''}">
+        <!-- Linha vertical + dot -->
+        <div style="display:flex;flex-direction:column;align-items:center;position:relative;min-width:32px;">
+          <div style="width:14px;height:14px;border-radius:50%;background:${dotColor};border:2px solid var(--bg);box-shadow:0 0 0 2px ${dotColor};"></div>
+          ${i < marcos.length - 1 ? `<div style="width:2px;height:24px;background:var(--border);margin-top:6px;"></div>` : ''}
+        </div>
+
+        <!-- Conteúdo -->
+        <div>
+          <div style="font-size:${ehMetaFinal ? '22' : '18'}px;font-weight:${ehMetaFinal ? '800' : '700'};letter-spacing:-0.02em;color:${ehMetaFinal ? 'var(--accent)' : textColor};">
+            R$ ${alvo.toLocaleString('pt-BR')}/mês
+            ${ehMetaFinal ? '<span style="font-size:11px;font-family:DM Mono, monospace;color:var(--accent);margin-left:8px;font-weight:600;">META FINAL</span>' : ''}
+          </div>
+          <div style="margin-top:6px;">${statusContent}</div>
+        </div>
+
+        <!-- Valor anual -->
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Por ano</div>
+          <div style="font-size:14px;font-weight:700;color:${textColor};margin-top:2px;">R$ ${(alvo * 12).toLocaleString('pt-BR')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('jornadaTimeline').innerHTML = html;
+
+  // Insight personalizado
+  const metaFinalDados = atingidos[2000];
+  let insightTexto = '';
+
+  if (rendaMensalAtual >= 2000) {
+    insightTexto = `<strong style="color:var(--success);">Meta alcançada!</strong> Você já recebe ${fmt(rendaMensalAtual)}/mês. Hora de redefinir uma meta nova — talvez R$ 5.000/mês? Aumentar metas individuais por FII?`;
+  } else if (metaFinalDados) {
+    const anosF = Math.floor(metaFinalDados.meses / 12);
+    const mesesF = metaFinalDados.meses % 12;
+    const futuro = new Date(hoje);
+    futuro.setMonth(futuro.getMonth() + metaFinalDados.meses);
+    const dataFinal = `${meses[futuro.getMonth()]}/${futuro.getFullYear()}`;
+
+    insightTexto = `Mantendo o ritmo de <strong style="color:var(--accent);">${fmt(aporteMensal)}/mês</strong> de aporte, você atinge sua meta de <strong style="color:var(--text);">R$ 2.000/mês</strong> de renda passiva em <strong style="color:var(--accent);">${anosF}a ${mesesF}m</strong> — em <strong style="color:var(--text);">${dataFinal}</strong>. A partir daí, sem aportar mais nada, sua renda passiva continua crescendo ~4% ao ano (crescimento dos dividendos) e bate R$ 3.000/mês alguns anos depois sem você levantar um dedo. É o "banco de ações" do Barsi funcionando.`;
+  } else {
+    insightTexto = `Com o aporte atual de ${fmt(aporteMensal)}/mês, a meta de R$ 2.000/mês não é alcançada nos próximos 20 anos. Considere aumentar o aporte ou ativos com DY maior. Lembre-se: o tempo trabalha a seu favor — começar é o passo mais importante.`;
+  }
+
+  document.getElementById('jornadaInsight').innerHTML = insightTexto;
+}
+
+
 function renderTudo() {
   renderDashboard();
   renderOportunidades();
