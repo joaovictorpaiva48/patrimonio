@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patrimônio · Análise de Carteira</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Patrimônio">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0a; --bg-2: #141414; --surface: #1a1a1a; --surface-2: #242424;
+  --border: #2a2a2a; --border-strong: #3a3a3a;
+  --text: #f5f5f5; --text-2: #a3a3a3; --text-3: #6b6b6b;
+  --accent: #c5ff4a; --accent-2: #a0e028; --gold: #f5b342;
+  --success: #4ade80; --success-bg: rgba(74, 222, 128, 0.1);
+  --warn: #fbbf24; --warn-bg: rgba(251, 191, 36, 0.1);
+  --danger: #ef4444; --danger-bg: rgba(239, 68, 68, 0.1);
+  --info: #60a5fa; --info-bg: rgba(96, 165, 250, 0.1);
+  --radius: 16px; --radius-sm: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+html { scroll-behavior: smooth; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; background-image: radial-gradient(circle at 15% 0%, rgba(197, 255, 74, 0.05), transparent 50%); min-height: 100vh; }
+.mono { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* HEADER */
+header { background: rgba(10,10,10,0.85); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(20px); }
+.header-inner { max-width: 1280px; margin: 0 auto; padding: 18px 32px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-logo { width: 36px; height: 36px; background: var(--accent); border-radius: 10px; display: grid; place-items: center; color: var(--bg); font-weight: 800; font-size: 18px; }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+.brand-name span { color: var(--text-2); font-weight: 500; margin-left: 4px; }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.btn-update { display: flex; align-items: center; gap: 8px; padding: 11px 18px; background: var(--accent); color: var(--bg); border: none; border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; transition: all 0.15s; }
+.btn-update:hover { background: var(--accent-2); }
+.btn-update.syncing { background: var(--surface-2); color: var(--text); }
+.btn-update.syncing .icon { animation: spin 1s linear infinite; display: inline-block; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.btn-config { padding: 11px 14px; background: var(--surface); color: var(--text-2); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; }
+.btn-config:hover { color: var(--text); border-color: var(--accent); }
+
+main { max-width: 1280px; margin: 0 auto; padding: 36px 32px 80px; }
+
+/* HERO */
+.hero { margin-bottom: 28px; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; font-size: 12px; color: var(--text-2); margin-bottom: 20px; }
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.hero h1 { font-size: clamp(38px, 5vw, 56px); line-height: 1.02; letter-spacing: -0.03em; font-weight: 700; max-width: 880px; margin-bottom: 14px; }
+.hero h1 span { color: var(--accent); }
+.hero p { font-size: 16px; color: var(--text-2); max-width: 680px; line-height: 1.5; }
+
+/* SECTION HEADER */
+.section-header { margin-bottom: 24px; }
+.section-title { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; }
+.section-title span { color: var(--accent); }
+.section-sub { color: var(--text-2); font-size: 14px; margin-top: 6px; }
+
+/* OPORTUNIDADE CARDS - O FOCO PRINCIPAL */
+.opportunities-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 32px; }
+
+.opp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; display: grid; grid-template-columns: 80px 1fr auto; gap: 24px; align-items: center; transition: all 0.2s; position: relative; overflow: hidden; }
+
+.opp-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.opp-card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: var(--success); }
+.opp-card.muito-bom::before { background: var(--accent); }
+.opp-card.bom::before { background: var(--success); }
+.opp-card.razoavel::before { background: var(--warn); }
+
+.opp-rank { font-size: 56px; font-weight: 800; color: var(--text-3); letter-spacing: -0.04em; line-height: 1; }
+.opp-card.muito-bom .opp-rank { color: var(--accent); }
+
+.opp-info h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 4px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.opp-info h3 .name { font-size: 14px; color: var(--text-2); font-weight: 500; }
+
+.opp-tags { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+.tag { font-family: 'DM Mono', monospace; font-size: 9px; padding: 3px 7px; border-radius: 4px; background: var(--surface-2); color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.tag.fii { background: var(--info-bg); color: var(--info); }
+.tag.setor { background: rgba(197,255,74,0.1); color: var(--accent); }
+.tag.minha { background: var(--accent); color: var(--bg); }
+
+.opp-reason { font-size: 13px; color: var(--text-2); line-height: 1.55; max-width: 560px; }
+
+.opp-metrics { display: flex; gap: 28px; align-items: center; }
+.opp-metric { text-align: right; }
+.opp-metric .lbl { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+.opp-metric .v { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.opp-metric .v.up { color: var(--success); }
+.opp-metric .v.accent { color: var(--accent); }
+
+.opp-score { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; font-weight: 800; background: var(--accent); color: var(--bg); letter-spacing: -0.02em; }
+.opp-score.bom { background: var(--success); color: var(--bg); }
+.opp-score.razoavel { background: var(--warn); color: var(--bg); }
+
+/* FILTROS */
+.filters { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); padding: 6px; border-radius: 12px; border: 1px solid var(--border); width: fit-content; }
+.filters button { background: transparent; border: none; padding: 8px 16px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-2); border-radius: 8px; transition: all 0.15s; }
+.filters button:hover { color: var(--text); }
+.filters button.active { background: var(--accent); color: var(--bg); }
+
+/* DASHBOARD CARDS */
+.dashboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+.metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.metric-card.highlight { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); border-color: var(--accent); color: var(--bg); }
+.metric-card.highlight .metric-label { color: rgba(10,10,10,0.7); }
+.metric-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); font-weight: 500; margin-bottom: 10px; }
+.metric-value { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.metric-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); margin-top: 6px; }
+.metric-card.highlight .metric-sub { color: rgba(10,10,10,0.6); }
+
+/* CARD CARTEIRA EM TABS */
+.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px; margin-bottom: 24px; width: fit-content; }
+.tab { padding: 9px 16px; background: transparent; border: none; border-radius: 8px; cursor: pointer; color: var(--text-2); font-family: inherit; font-size: 13px; font-weight: 600; transition: all 0.15s; display: flex; align-items: center; gap: 8px; }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--accent); color: var(--bg); }
+.panel { display: none; }
+.panel.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* TABELA CARTEIRA */
+.table-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.table-header { padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.table-header h3 { font-size: 15px; font-weight: 700; }
+.table-header .meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 12px 20px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); background: var(--bg-2); font-weight: 500; border-bottom: 1px solid var(--border); }
+td { padding: 12px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-2); }
+td.asset-name { font-weight: 700; font-size: 14px; }
+td.asset-name input { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; background: var(--bg-2); border: 1px solid var(--border); padding: 6px 8px; border-radius: 6px; color: var(--text); width: 90px; cursor: text; transition: all 0.15s; }
+td.asset-name input:hover { border-color: var(--accent); background: var(--bg); }
+td.asset-name input:focus { outline: none; border-color: var(--accent); background: var(--bg); box-shadow: 0 0 0 3px rgba(197,255,74,0.15); }
+.value-pos { color: var(--success); font-weight: 600; }
+.value-neg { color: var(--danger); font-weight: 600; }
+.value-accent { color: var(--accent); font-weight: 700; }
+
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600; text-transform: uppercase; border-radius: 6px; }
+.badge.comprar { background: var(--success-bg); color: var(--success); }
+.badge.manter { background: var(--warn-bg); color: var(--warn); }
+.badge.reduzir { background: var(--danger-bg); color: var(--danger); }
+.badge.etf { background: rgba(245,179,66,0.15); color: var(--gold); }
+
+.asset-tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-family: 'DM Mono', monospace; font-size: 9px; margin-top: 3px; font-weight: 600; text-transform: uppercase; background: var(--surface-2); color: var(--text-2); }
+.asset-tag.fii { background: var(--info-bg); color: var(--info); }
+.asset-tag.etf-tag { background: rgba(245,179,66,0.15); color: var(--gold); }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 32px; max-width: 480px; width: 100%; }
+.modal h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+.modal p { font-size: 13px; color: var(--text-2); line-height: 1.6; margin-bottom: 16px; }
+.modal a { color: var(--accent); text-decoration: none; }
+.modal a:hover { text-decoration: underline; }
+.modal input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 14px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); width: 100%; }
+.modal input:focus { outline: none; border-color: var(--accent); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.btn-modal { padding: 10px 18px; border: none; border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.btn-modal.primary { background: var(--accent); color: var(--bg); }
+.btn-modal.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+
+/* TOAST */
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 14px 18px; font-size: 13px; font-weight: 500; color: var(--text); box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 1000; transform: translateY(100px); opacity: 0; transition: all 0.3s; display: flex; align-items: center; gap: 12px; max-width: 380px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: var(--success); }
+.toast.error { border-color: var(--danger); }
+.toast .icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+.toast.success .icon { background: var(--success-bg); color: var(--success); }
+.toast.error .icon { background: var(--danger-bg); color: var(--danger); }
+
+.empty-state { padding: 80px 20px; text-align: center; color: var(--text-3); }
+.empty-state h3 { font-size: 22px; font-weight: 700; color: var(--text-2); margin-bottom: 8px; }
+
+footer { border-top: 1px solid var(--border); margin-top: 80px; padding: 32px; text-align: center; font-size: 12px; color: var(--text-3); }
+footer strong { color: var(--text); font-weight: 700; }
+footer a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 900px) {
+  .header-inner, main, footer { padding-left: 20px; padding-right: 20px; }
+  .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+  .opp-card { grid-template-columns: 1fr; gap: 14px; }
+  .opp-metrics { gap: 16px; flex-wrap: wrap; }
+  .btn-update .label { display: none; }
+}
+@media (max-width: 600px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-logo">P</div>
+      <div class="brand-name">Patrimônio <span>Análise</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-config" onclick="abrirModal()" title="Configurar token API">⚙</button>
+      <button class="btn-update" id="syncBtn" onclick="atualizarCotacoes()">
+        <span class="icon">↻</span>
+        <span class="label">Atualizar cotações</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      <span id="updateStatus">Última atualização: <span id="lastUpdateText">nunca</span></span>
+    </div>
+    <h1>Onde <span>comprar</span> agora.</h1>
+    <p>Ativos abaixo do preço teto, com margem de segurança e DY que faz sentido pelo método Bazin/Graham/Barsi — recalibrado para Selic 14,50%.</p>
+  </section>
+
+  <div class="dashboard-grid">
+    <div class="metric-card highlight">
+      <div class="metric-label">Patrimônio total</div>
+      <div class="metric-value num" id="dashPat">R$ 0</div>
+      <div class="metric-sub" id="dashPatDelta">— vs custo</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Renda anual atual</div>
+      <div class="metric-value num" id="dashRenda">R$ 0</div>
+      <div class="metric-sub" id="dashRendaMes">R$ 0/mês</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">DY médio carteira</div>
+      <div class="metric-value num" id="dashDY">0%</div>
+      <div class="metric-sub">Selic real: 9,21%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Oportunidades agora</div>
+      <div class="metric-value num" id="dashOpp">0</div>
+      <div class="metric-sub">ativos abaixo do teto</div>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-panel="oportunidades">Oportunidades</button>
+    <button class="tab" data-panel="carteira">Minha Carteira</button>
+  </nav>
+
+  <!-- ============ PANEL: OPORTUNIDADES ============ -->
+  <section class="panel active" id="oportunidades">
+    <div class="section-header">
+      <h2 class="section-title">Para <span>comprar</span> agora</h2>
+      <p class="section-sub">Ativos da sua carteira + universo selecionado que estão abaixo do preço teto e fazem sentido pelo método</p>
+    </div>
+
+    <div class="filters">
+      <button class="active" onclick="filtrar('todos', event)">Todos</button>
+      <button onclick="filtrar('minha', event)">Só da minha carteira</button>
+      <button onclick="filtrar('fii', event)">FIIs</button>
+      <button onclick="filtrar('acao', event)">Ações</button>
+    </div>
+
+    <div class="opportunities-grid" id="oppList"></div>
+  </section>
+
+  <!-- ============ PANEL: CARTEIRA ============ -->
+  <section class="panel" id="carteira">
+    <div class="section-header">
+      <h2 class="section-title">Sua <span>carteira</span></h2>
+      <p class="section-sub">Edite o preço atual clicando no valor · todas as análises recalculam na hora</p>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--accent);border-left-width:4px;border-radius:var(--radius);padding:18px 22px;margin-bottom:20px;">
+      <div style="display:flex;align-items:start;gap:14px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(197,255,74,0.15);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:18px;flex-shrink:0;">↻</div>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Duas formas de atualizar os preços</div>
+          <div style="font-size:13px;color:var(--text-2);line-height:1.6;">
+            <strong style="color:var(--text);">1. Automático:</strong> Cadastre token grátis em <a href="https://brapi.dev" target="_blank" style="color:var(--accent);">brapi.dev</a>, configure no botão ⚙ no topo, depois clique em "Atualizar cotações". <em>Pode falhar se você abrir o arquivo direto (file://) — nesse caso, use a opção 2.</em>
+            <br><br>
+            <strong style="color:var(--text);">2. Manual:</strong> Clique no preço atual de qualquer ativo na tabela abaixo, digite o novo valor, pressione Enter. Toda análise se recalcula. <strong style="color:var(--accent);">Sempre funciona, em qualquer cenário.</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrapper" id="portfolioTable"></div>
+  </section>
+
+</main>
+
+<!-- MODAL TOKEN -->
+<div class="modal-overlay" id="tokenModal">
+  <div class="modal">
+    <h3>Token BRAPI (atualização automática)</h3>
+    <p>Para atualizar cotações automaticamente em 1 clique, você precisa de um token gratuito da BRAPI. Cadastro de 1 minuto:</p>
+    <p style="background:var(--bg-2);padding:14px;border-radius:8px;font-size:12px;">
+      1. Acesse <a href="https://brapi.dev/" target="_blank">brapi.dev</a> e clique em "Criar conta"<br>
+      2. Confirme email, acesse o dashboard<br>
+      3. Copie seu token (string longa)<br>
+      4. Cole abaixo
+    </p>
+    <input type="text" id="tokenInput" placeholder="Cole seu token aqui">
+    <p style="font-size:12px;color:var(--text-3);margin-top:10px;margin-bottom:0;">O token é salvo só no seu navegador. Se preferir, pule esse passo e edite os preços manualmente na aba "Minha Carteira".</p>
+    <div class="modal-actions">
+      <button class="btn-modal ghost" onclick="fecharModal()">Pular</button>
+      <button class="btn-modal primary" onclick="salvarToken()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <p><strong>Patrimônio</strong> · Análise baseada em Bazin, Graham, Barsi · Selic 14,50%</p>
+  <p style="margin-top:6px;">Cotações via <a href="https://brapi.dev" target="_blank">brapi.dev</a> (manual ou API) · Dividendos do seu extrato B3 real</p>
+</footer>
+
+<script>
+// ============ CONSTANTES ============
+const SELIC = 0.1450;
+const IPCA = 0.0484;
+const SELIC_REAL = (1 + SELIC) / (1 + IPCA) - 1;
+const DY_MIN_RECALIB = SELIC_REAL + 0.01;
+
+// ============ DADOS ============
+const CARTEIRA_INICIAL = [
+  { ticker: 'BBSE3', tipo: 'acao', qtd: 306, pm: 35.74, atual: 34.55, div: 4.55 },
+  { ticker: 'BBAS3', tipo: 'acao', qtd: 205, pm: 27.01, atual: 21.16, div: 0.84 },
+  { ticker: 'TAEE11', tipo: 'acao', qtd: 93, pm: 34.12, atual: 38.93, div: 3.23 },
+  { ticker: 'AXIA6', tipo: 'acao', qtd: 35, pm: 62.87, atual: 58.33, div: 5.20 },
+  { ticker: 'ITUB4', tipo: 'acao', qtd: 20, pm: 41.86, atual: 39.88, div: 2.32 },
+  { ticker: 'ISAE4', tipo: 'acao', qtd: 18, pm: 22.23, atual: 27.61, div: 1.63 },
+  { ticker: 'CXSE3', tipo: 'acao', qtd: 20, pm: 17.37, atual: 17.59, div: 1.55 },
+  { ticker: 'KLBN4', tipo: 'acao', qtd: 101, pm: 3.65, atual: 3.33, div: 0.10 },
+  { ticker: 'HGRE11', tipo: 'fii', qtd: 120, pm: 122.46, atual: 130.49, div: 12.55 },
+  { ticker: 'HGLG11', tipo: 'fii', qtd: 60, pm: 159.00, atual: 155.04, div: 13.20 },
+  { ticker: 'XPLG11', tipo: 'fii', qtd: 45, pm: 107.41, atual: 97.51, div: 9.84 },
+  { ticker: 'VISC11', tipo: 'fii', qtd: 20, pm: 120.87, atual: 107.59, div: 9.83 },
+  { ticker: 'TRXF11', tipo: 'fii', qtd: 10, pm: 95.05, atual: 91.66, div: 11.16 },
+  { ticker: 'XPML11', tipo: 'fii', qtd: 25, pm: 105.54, atual: 106.95, div: 11.04 },
+  { ticker: 'HGBS11', tipo: 'fii', qtd: 24, pm: 20.75, atual: 19.98, div: 2.04 },
+  { ticker: 'HGRU11', tipo: 'fii', qtd: 35, pm: 129.75, atual: 129.58, div: 12.45 },
+  { ticker: 'BRCO11', tipo: 'fii', qtd: 24, pm: 121.31, atual: 117.04, div: 10.80 },
+  { ticker: 'KNCR11', tipo: 'fii', qtd: 11, pm: 103.79, atual: 105.15, div: 12.24 },
+  { ticker: 'MXRF11', tipo: 'fii', qtd: 199, pm: 10.61, atual: 9.95, div: 1.20 },
+  { ticker: 'IVVB11', tipo: 'etf', qtd: 8, pm: 383.74, atual: 425.51, div: 0 }
+];
+
+// Universo de ativos sugeridos (fora da carteira, prevamente filtrados por qualidade)
+const UNIVERSO_EXTRA = [
+  { ticker: 'ITSA4', tipo: 'acao', setor: 'Holding (Itaú)', qualidade: 'alta', preco: 11.20, div: 0.95, anosHist: 30 },
+  { ticker: 'TAEE3', tipo: 'acao', setor: 'Transmissão', qualidade: 'alta', preco: 13.05, div: 1.17, anosHist: 16 },
+  { ticker: 'EGIE3', tipo: 'acao', setor: 'Energia', qualidade: 'alta', preco: 38.50, div: 3.20, anosHist: 25 },
+  { ticker: 'CMIG4', tipo: 'acao', setor: 'Energia', qualidade: 'media', preco: 11.80, div: 1.30, anosHist: 30 },
+  { ticker: 'SANB11', tipo: 'acao', setor: 'Bancos', qualidade: 'alta', preco: 31.20, div: 2.43, anosHist: 15 },
+  { ticker: 'KLBN11', tipo: 'acao', setor: 'Papel', qualidade: 'alta', preco: 19.40, div: 1.40, anosHist: 30 },
+  { ticker: 'VRTA11', tipo: 'fii', setor: 'FII Papel', qualidade: 'alta', preco: 78.50, div: 10.49, anosHist: 10 },
+  { ticker: 'KNRI11', tipo: 'fii', setor: 'FII Híbrido', qualidade: 'alta', preco: 158.40, div: 13.78, anosHist: 14 },
+  { ticker: 'RECR11', tipo: 'fii', setor: 'FII Papel', qualidade: 'media', preco: 92.00, div: 13.34, anosHist: 8 },
+  { ticker: 'BCFF11', tipo: 'fii', setor: 'FII de FIIs', qualidade: 'alta', preco: 6.85, div: 0.66, anosHist: 12 }
+];
+
+// Setores conhecidos (para sugestão)
+const SETORES = {
+  'BBSE3': 'Seguros', 'BBAS3': 'Bancos (estatal)', 'TAEE11': 'Transmissão energia',
+  'AXIA6': 'Energia elétrica', 'ITUB4': 'Bancos', 'ISAE4': 'Transmissão energia',
+  'CXSE3': 'Seguros', 'KLBN4': 'Papel e celulose',
+  'HGRE11': 'FII Lajes corporativas', 'HGLG11': 'FII Logística', 'XPLG11': 'FII Logística',
+  'VISC11': 'FII Shoppings', 'TRXF11': 'FII Renda urbana', 'XPML11': 'FII Shoppings',
+  'HGBS11': 'FII Shoppings', 'HGRU11': 'FII Renda urbana', 'BRCO11': 'FII Logística',
+  'KNCR11': 'FII Papel/CDI', 'MXRF11': 'FII Papel'
+};
+
+let carteira = JSON.parse(localStorage.getItem('carteira_v7') || JSON.stringify(CARTEIRA_INICIAL));
+let lastUpdate = localStorage.getItem('lastUpdate_v7') || null;
+let brapiToken = localStorage.getItem('brapi_token_v7') || '';
+let filtroAtivo = 'todos';
+
+function salvarCarteira() { localStorage.setItem('carteira_v7', JSON.stringify(carteira)); }
+function salvarLastUpdate() { localStorage.setItem('lastUpdate_v7', lastUpdate); }
+function salvarToken() {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (val) {
+    brapiToken = val;
+    localStorage.setItem('brapi_token_v7', val);
+    showToast('Token salvo. Agora você pode atualizar as cotações.', 'success');
+  }
+  fecharModal();
+}
+
+const fmt = v => v == null || isNaN(v) ? '—' : `R$ ${v.toFixed(2).replace('.', ',')}`;
+const fmtK = v => { if (!v) return 'R$ 0'; if (Math.abs(v) >= 1000) return `R$ ${(v/1000).toFixed(1).replace('.', ',')}k`; return `R$ ${v.toFixed(2).replace('.', ',')}`; };
+const pct = v => v == null || isNaN(v) ? '—' : `${v.toFixed(1).replace('.', ',')}%`;
+
+// ============ MODAL ============
+function abrirModal() {
+  document.getElementById('tokenInput').value = brapiToken;
+  document.getElementById('tokenModal').classList.add('show');
+}
+function fecharModal() { document.getElementById('tokenModal').classList.remove('show'); }
+document.getElementById('tokenModal').addEventListener('click', e => { if (e.target.id === 'tokenModal') fecharModal(); });
+
+// ============ TOAST ============
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  const icon = type === 'success' ? '✓' : type === 'error' ? '×' : 'i';
+  t.innerHTML = `<div class="icon">${icon}</div><div>${msg}</div>`;
+  t.className = `toast show ${type}`;
+  setTimeout(() => { t.className = `toast ${type}`; }, 4500);
+}
+
+// ============ NAVEGAÇÃO ============
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+
+// ============ ATUALIZAR COTAÇÕES VIA BRAPI ============
+async function atualizarCotacoes() {
+  if (!brapiToken) {
+    showToast('Configure seu token BRAPI primeiro (clique no ⚙)', 'error');
+    setTimeout(() => abrirModal(), 1200);
+    return;
+  }
+
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('syncing');
+  btn.querySelector('.label').textContent = 'Atualizando...';
+
+  try {
+    // BRAPI tem limite de tickers por requisição. Vamos dividir em lotes de 10.
+    const tickers = carteira.map(a => a.ticker);
+    const lotes = [];
+    for (let i = 0; i < tickers.length; i += 10) {
+      lotes.push(tickers.slice(i, i + 10));
+    }
+
+    let atualizados = 0;
+    let erros = [];
+
+    for (const lote of lotes) {
+      const url = `https://brapi.dev/api/quote/${lote.join(',')}?token=${brapiToken}`;
+      try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          // 401 = token inválido, 429 = limite, etc
+          if (response.status === 401) throw new Error('Token inválido — verifique no botão ⚙');
+          if (response.status === 429) throw new Error('Limite da API atingido — tente novamente em alguns minutos');
+          if (response.status === 402) throw new Error('Recurso pago — alguns ativos exigem plano pago da BRAPI');
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.message || 'Erro retornado pela API');
+        if (!data.results) throw new Error('Resposta sem dados');
+
+        data.results.forEach(r => {
+          const idx = carteira.findIndex(a => a.ticker === r.symbol);
+          if (idx >= 0 && r.regularMarketPrice && r.regularMarketPrice > 0) {
+            carteira[idx].atual = r.regularMarketPrice;
+            atualizados++;
+          }
+        });
+      } catch (e) {
+        erros.push(e.message);
+      }
+    }
+
+    if (atualizados === 0) {
+      const motivo = erros[0] || 'Possíveis causas: token inválido, abrir o arquivo direto sem servidor (CORS), ou conexão.';
+      throw new Error(motivo);
+    }
+
+    lastUpdate = new Date().toISOString();
+    salvarCarteira();
+    salvarLastUpdate();
+
+    btn.classList.remove('syncing');
+    btn.querySelector('.label').textContent = 'Atualizar cotações';
+    if (erros.length > 0) {
+      showToast(`${atualizados} ativos atualizados, ${erros.length} lote(s) com erro`, 'success');
+    } else {
+      showToast(`${atualizados} cotações atualizadas com sucesso`, 'success');
+    }
+    renderTudo();
+
+  } catch (err) {
+    btn.classList.remove('syncing');
+    btn.querySelector('.label').textContent = 'Atualizar cotações';
+
+    // Mensagem de erro detalhada
+    let msg = err.message;
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      msg = 'Falha de rede. Se você abriu o arquivo direto (file://), o navegador bloqueia chamadas externas por segurança. Solução: edite os preços manualmente na aba "Carteira" (clica no valor, digita, Enter).';
+    }
+    showToast(msg, 'error');
+    console.error('Erro na atualização:', err);
+  }
+}
+
+function formatarLastUpdate() {
+  if (!lastUpdate) return 'nunca · edite os preços manualmente na aba Carteira';
+  const d = new Date(lastUpdate);
+  const agora = new Date();
+  const diff = Math.floor((agora - d) / 1000);
+  if (diff < 60) return `há ${diff}s`;
+  if (diff < 3600) return `há ${Math.floor(diff/60)}min`;
+  if (diff < 86400) return `há ${Math.floor(diff/3600)}h`;
+  const dias = Math.floor(diff/86400);
+  return `há ${dias} dia${dias>1?'s':''} · ${d.toLocaleDateString('pt-BR')}`;
+}
+
+// ============ ANÁLISE DE UM ATIVO ============
+function analisar(a) {
+  const dyAtual = a.div > 0 ? (a.div / a.atual) * 100 : 0;
+  const tetoBazin = a.div / 0.06;
+  const tetoRecal = a.div / DY_MIN_RECALIB;
+  const k = SELIC + 0.03;
+  const g = 0.04;
+  const tetoProj = (a.div * (1 + g)) / (k - g);
+  const tetoMin = a.div > 0 ? Math.min(tetoBazin, tetoRecal, tetoProj) : null;
+  const tetoConservador = a.div > 0 ? tetoRecal : null; // o que usamos como referência principal
+  const margem = tetoMin ? ((tetoMin - a.atual) / tetoMin) * 100 : null;
+  const valorTotal = a.qtd * a.atual;
+  const lp = valorTotal - (a.qtd * a.pm);
+  const rendaAnual = a.qtd * a.div;
+  return { dyAtual, tetoBazin, tetoRecal, tetoProj, tetoMin, tetoConservador, margem, valorTotal, lp, rendaAnual };
+}
+
+// ============ CÁLCULO DA OPORTUNIDADE ============
+// Score que mede o quão atrativo o ativo está AGORA para comprar
+function scoreOportunidade(ativo) {
+  if (ativo.tipo === 'etf') return null;
+  if (!ativo.div || ativo.div <= 0) return null;
+
+  const r = analisar(ativo);
+
+  // CRITÉRIO 1: precisa ter margem positiva (preço abaixo do teto)
+  if (r.margem == null || r.margem < 0) return null;
+
+  // CRITÉRIO 2: DY precisa ser razoável (>= 7% pelo método ajustado à Selic alta)
+  if (r.dyAtual < 7) return null;
+
+  // CRITÉRIO 3: Filtro de qualidade - precisa fazer sentido pelo método
+  // Setores perenes Barsi: energia, bancos, seguros, FIIs sólidos
+  const setoresPerenes = ['Seguros', 'Bancos', 'Transmissão energia', 'Energia elétrica', 'Holding (Itaú)', 'Holding', 'Energia', 'Papel e celulose', 'Papel'];
+  const fiisOK = ['HGLG11', 'HGRE11', 'HGRU11', 'KNCR11', 'KNRI11', 'XPML11', 'VRTA11', 'BRCO11', 'MXRF11'];
+
+  let qualidadeFator = 0.7; // padrão
+  const setor = SETORES[ativo.ticker] || ativo.setor || '';
+  if (setoresPerenes.some(s => setor.includes(s))) qualidadeFator = 1.0;
+  if (ativo.tipo === 'fii' && fiisOK.includes(ativo.ticker)) qualidadeFator = 1.0;
+  if (ativo.tipo === 'fii' && !fiisOK.includes(ativo.ticker)) qualidadeFator = 0.85;
+
+  // CRITÉRIO 4: filtros qualitativos negativos
+  if (ativo.ticker === 'BBAS3') return null; // turbulência política, DY caiu
+  if (ativo.ticker === 'KLBN4') return null; // posição irrelevante, melhor migrar para KLBN11
+  if (ativo.ticker === 'CXSE3' && ativo.anosHist && ativo.anosHist < 7) return null;
+
+  // PONTUAÇÃO
+  // DY (40%): 7% = 70 pontos, 12%+ = 100 pontos
+  const scoreDY = Math.min(100, 70 + (r.dyAtual - 7) * 6) * 0.4;
+
+  // Margem (30%): 0% = 0, 30%+ = 100
+  const scoreMargem = Math.min(100, r.margem * 3.5) * 0.3;
+
+  // Qualidade (30%)
+  const scoreQual = qualidadeFator * 100 * 0.3;
+
+  return Math.round((scoreDY + scoreMargem + scoreQual));
+}
+
+// ============ GERAR LISTA DE OPORTUNIDADES ============
+function gerarOportunidades() {
+  // Da carteira
+  const daCarteira = carteira
+    .filter(a => a.tipo !== 'etf')
+    .map(a => {
+      const score = scoreOportunidade(a);
+      if (score == null) return null;
+      const r = analisar(a);
+      return {
+        ticker: a.ticker,
+        nome: SETORES[a.ticker] || '',
+        tipo: a.tipo,
+        setor: SETORES[a.ticker] || 'Setor',
+        preco: a.atual,
+        div: a.div,
+        score,
+        dyAtual: r.dyAtual,
+        teto: r.tetoConservador,
+        margem: r.margem,
+        naCarteira: true
+      };
+    })
+    .filter(x => x !== null);
+
+  // Do universo extra (somente os que NÃO estão na carteira)
+  const tickersCarteira = carteira.map(a => a.ticker);
+  const doUniverso = UNIVERSO_EXTRA
+    .filter(a => !tickersCarteira.includes(a.ticker))
+    .map(a => {
+      const ativoSim = { ticker: a.ticker, tipo: a.tipo, atual: a.preco, div: a.div, qtd: 0, pm: 0, setor: a.setor, anosHist: a.anosHist };
+      const score = scoreOportunidade(ativoSim);
+      if (score == null) return null;
+      const r = analisar(ativoSim);
+      return {
+        ticker: a.ticker,
+        nome: a.setor,
+        tipo: a.tipo,
+        setor: a.setor,
+        preco: a.preco,
+        div: a.div,
+        score,
+        dyAtual: r.dyAtual,
+        teto: r.tetoConservador,
+        margem: r.margem,
+        naCarteira: false
+      };
+    })
+    .filter(x => x !== null);
+
+  return [...daCarteira, ...doUniverso].sort((a, b) => b.score - a.score);
+}
+
+// ============ RAZÃO PERSONALIZADA ============
+function razaoCompra(opp) {
+  const razoes = {
+    'BBSE3': 'Seguradora do BB. Você comprovou pelo extrato: R$ 4,55/ação em 12 meses. Payout próximo de 100%, beneficia da Selic alta.',
+    'TAEE11': 'Transmissora pura. Receita 100% contratada por 30 anos e indexada ao IPCA. Caso clássico de Bazin/Barsi.',
+    'KNCR11': 'FII de papel CDI. Distribuição forte em Selic alta. Considere travar cotas antes do ciclo de queda.',
+    'HGRE11': 'Lajes corporativas premium. Pagamentos extraordinários puxaram o DY de 12 meses.',
+    'HGLG11': 'Maior FII de galpões. R$ 1,10/mês consistente. Upside no ciclo de queda da Selic.',
+    'HGRU11': 'Mix de varejo urbano. Pagamentos mensais estáveis, gestão Pátria.',
+    'XPML11': 'FII de shoppings. DY de 10% com R$ 0,92/mês recorrente.',
+    'BRCO11': 'Logística de qualidade. Bom DY, mas histórico ainda curto (5 anos).',
+    'ITUB4': 'Banco privado mais resiliente em Selic alta. ROE elevado, dividendos consistentes.',
+    'ITSA4': 'Holding do Itaú com desconto sobre os ativos. 30 anos pagando.',
+    'TAEE3': 'ON da Taesa, DY ligeiramente maior que a unit por menor liquidez.',
+    'EGIE3': 'Engie Brasil, geradora pura com receita previsível. 25 anos pagando dividendos.',
+    'KLBN11': 'Units da Klabin. Liquidez e dividendos melhores que KLBN4.',
+    'SANB11': 'Santander Brasil. Bom DY, ROE elevado.',
+    'VRTA11': 'FII de papel diversificado, DY 13%+.',
+    'KNRI11': 'FII híbrido lajes + galpões, gestão Kinea premium.',
+    'AXIA6': 'Antiga Cemig de geração. Safra projeta DY 9% até 2028.',
+    'ISAE4': 'Maior transmissora de SP. Receita indexada ao IPCA.',
+    'CMIG4': 'Cemig PN. Setor regulado, dividendos altos mas voláteis.',
+    'BCFF11': 'FII de FIIs, diversificação automática.',
+    'MXRF11': 'FII de papel diversificado, cotas acessíveis.'
+  };
+  return razoes[opp.ticker] || `${opp.setor}. DY de ${pct(opp.dyAtual)} acima da Selic real, margem de ${pct(opp.margem)} contra o preço teto.`;
+}
+
+// ============ RENDER OPORTUNIDADES ============
+function renderOportunidades() {
+  let lista = gerarOportunidades();
+
+  if (filtroAtivo === 'minha') lista = lista.filter(o => o.naCarteira);
+  if (filtroAtivo === 'fii') lista = lista.filter(o => o.tipo === 'fii');
+  if (filtroAtivo === 'acao') lista = lista.filter(o => o.tipo === 'acao');
+
+  document.getElementById('dashOpp').textContent = gerarOportunidades().length;
+
+  if (lista.length === 0) {
+    document.getElementById('oppList').innerHTML = `<div class="empty-state"><h3>Nenhuma oportunidade no filtro</h3><p>Tente outro filtro ou atualize as cotações.</p></div>`;
+    return;
+  }
+
+  document.getElementById('oppList').innerHTML = lista.map((o, i) => {
+    let classe = 'razoavel';
+    if (o.score >= 85) classe = 'muito-bom';
+    else if (o.score >= 70) classe = 'bom';
+
+    const rank = (i + 1).toString().padStart(2, '0');
+
+    return `
+      <div class="opp-card ${classe}">
+        <div class="opp-rank">${rank}</div>
+        <div class="opp-info">
+          <h3>${o.ticker} <span class="name">${o.nome}</span></h3>
+          <div class="opp-tags">
+            <span class="tag ${o.tipo}">${o.tipo === 'fii' ? 'FII' : 'AÇÃO'}</span>
+            <span class="tag setor">${o.setor}</span>
+            ${o.naCarteira ? '<span class="tag minha">✓ na sua carteira</span>' : '<span class="tag">novo · não tem</span>'}
+          </div>
+          <div class="opp-reason">${razaoCompra(o)}</div>
+        </div>
+        <div class="opp-metrics">
+          <div class="opp-metric">
+            <div class="lbl">Preço atual</div>
+            <div class="v">${fmt(o.preco)}</div>
+          </div>
+          <div class="opp-metric">
+            <div class="lbl">DY 12m real</div>
+            <div class="v up">${pct(o.dyAtual)}</div>
+          </div>
+          <div class="opp-metric">
+            <div class="lbl">Preço teto</div>
+            <div class="v">${fmt(o.teto)}</div>
+          </div>
+          <div class="opp-metric">
+            <div class="lbl">Margem</div>
+            <div class="v accent">+${pct(o.margem)}</div>
+          </div>
+          <div class="opp-score ${classe === 'muito-bom' ? '' : classe}">${o.score}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filtrar(f, ev) {
+  filtroAtivo = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  ev.target.classList.add('active');
+  renderOportunidades();
+}
+
+// ============ DASHBOARD ============
+function renderDashboard() {
+  const rv = carteira.filter(a => a.tipo !== 'etf');
+  let patrim = 0, custo = 0, renda = 0;
+  carteira.forEach(a => { patrim += a.qtd * a.atual; custo += a.qtd * a.pm; });
+  rv.forEach(a => { renda += a.qtd * a.div; });
+  const patrimRV = rv.reduce((s, a) => s + a.qtd * a.atual, 0);
+  const dy = patrimRV > 0 ? (renda / patrimRV) * 100 : 0;
+  const lp = patrim - custo;
+
+  document.getElementById('dashPat').textContent = fmtK(patrim);
+  document.getElementById('dashPatDelta').textContent = `${lp >= 0 ? '+' : ''}${fmt(lp)} vs custo`;
+  document.getElementById('dashRenda').textContent = fmtK(renda);
+  document.getElementById('dashRendaMes').textContent = `${fmt(renda/12)}/mês`;
+  document.getElementById('dashDY').textContent = pct(dy);
+}
+
+// ============ TABELA CARTEIRA ============
+function renderCarteira() {
+  if (carteira.length === 0) {
+    document.getElementById('portfolioTable').innerHTML = '<div class="empty-state"><h3>Carteira vazia</h3></div>';
+    return;
+  }
+
+  const linhas = carteira.map((a, idx) => {
+    const r = analisar(a);
+    const sinal = r.lp >= 0 ? 'value-pos' : 'value-neg';
+    let acao, badge;
+    if (a.tipo === 'etf') { acao = 'CRESCIMENTO'; badge = 'etf'; }
+    else if (r.tetoConservador && a.atual < r.tetoConservador * 0.95 && r.dyAtual >= 7) { acao = 'COMPRAR'; badge = 'comprar'; }
+    else if (r.tetoConservador && a.atual < r.tetoConservador) { acao = 'MANTER'; badge = 'manter'; }
+    else { acao = 'REDUZIR'; badge = 'reduzir'; }
+
+    return `
+      <tr>
+        <td class="asset-name">${a.ticker}<div class="asset-tag ${a.tipo === 'fii' ? 'fii' : (a.tipo === 'etf' ? 'etf-tag' : '')}">${a.tipo.toUpperCase()}</div></td>
+        <td class="num">${a.qtd}</td>
+        <td class="num">${fmt(a.pm)}</td>
+        <td class="num">
+          <input type="number" step="0.01" value="${a.atual.toFixed(2)}" onchange="atualizarPreco(${idx}, this.value)">
+        </td>
+        <td class="num ${sinal}">${r.lp >= 0 ? '+' : ''}${fmt(r.lp)}</td>
+        <td class="num">${a.div > 0 ? fmt(a.div) : '—'}<br><span style="color:var(--text-3);font-size:11px;">${a.div > 0 ? pct(r.dyAtual) + ' DY' : 'sem div'}</span></td>
+        <td class="num">${fmt(r.tetoConservador)}</td>
+        <td class="num"><span class="${r.margem > 0 ? 'value-pos' : 'value-neg'}">${r.margem != null ? (r.margem > 0 ? '+' : '') + pct(r.margem) : '—'}</span></td>
+        <td><span class="badge ${badge}">${acao}</span></td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('portfolioTable').innerHTML = `
+    <div class="table-header">
+      <div>
+        <h3>${carteira.length} ativos</h3>
+        <div class="meta">Edite o preço atual clicando no valor — análise recalcula automaticamente</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Ativo</th><th>Qtd</th><th>P. Médio</th><th>P. Atual</th><th>L/P</th><th>Div/ano</th><th>Teto</th><th>Margem</th><th>Sinal</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function atualizarPreco(idx, novoPreco) {
+  const valor = parseFloat(novoPreco);
+  if (isNaN(valor) || valor <= 0) return;
+  carteira[idx].atual = valor;
+  salvarCarteira();
+  renderTudo();
+  showToast(`${carteira[idx].ticker} atualizado para ${fmt(valor)}`, 'success');
+}
+
+// ============ RENDERIZAR TUDO ============
+function renderTudo() {
+  renderDashboard();
+  renderOportunidades();
+  renderCarteira();
+  document.getElementById('lastUpdateText').textContent = formatarLastUpdate();
+}
+
+renderTudo();
+
+// Atualizar timestamp a cada minuto
+setInterval(() => {
+  document.getElementById('lastUpdateText').textContent = formatarLastUpdate();
+}, 60000);
+
+// ============ PWA: REGISTRAR SERVICE WORKER ============
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('PWA registrado:', reg.scope))
+      .catch(err => console.log('PWA falhou:', err));
+  });
+}
+
+// ============ PWA: PROMPT DE INSTALAÇÃO ============
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Mostrar botão de instalar depois de 3 segundos
+  setTimeout(() => {
+    if (deferredPrompt && !localStorage.getItem('install_dismissed')) {
+      showInstallPrompt();
+    }
+  }, 3000);
+});
+
+function showInstallPrompt() {
+  const toast = document.getElementById('toast');
+  toast.innerHTML = `
+    <div class="icon" style="background:rgba(197,255,74,0.15);color:var(--accent);">↓</div>
+    <div style="flex:1;">
+      <div style="font-weight:700;margin-bottom:2px;">Instalar como app</div>
+      <div style="font-size:12px;color:var(--text-2);">Acesso rápido na tela inicial</div>
+    </div>
+    <button onclick="instalarApp()" style="background:var(--accent);color:var(--bg);border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">Instalar</button>
+    <button onclick="dispensarInstall()" style="background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:18px;line-height:1;">×</button>
+  `;
+  toast.className = 'toast show success';
+}
+
+function instalarApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    deferredPrompt = null;
+    document.getElementById('toast').className = 'toast';
+  });
+}
+
+function dispensarInstall() {
+  localStorage.setItem('install_dismissed', '1');
+  document.getElementById('toast').className = 'toast';
+}
+</script>
+
+</body>
+</html>
