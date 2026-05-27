@@ -508,6 +508,8 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ============ ATUALIZAR COTAÇÕES VIA BRAPI ============
+let ultimosErros = []; // guarda os erros da última tentativa
+
 async function atualizarCotacoes() {
   if (!brapiToken) {
     showToast('Configure seu token BRAPI primeiro (clique no ⚙)', 'error');
@@ -522,6 +524,7 @@ async function atualizarCotacoes() {
   const tickers = carteira.map(a => a.ticker);
   let atualizados = 0;
   let erros = [];
+  ultimosErros = [];
 
   // BRAPI plano grátis: 1 ticker por requisição. Plano pago: até 10/req.
   // Estratégia: 1 por vez, com pequeno delay para não saturar
@@ -535,23 +538,22 @@ async function atualizarCotacoes() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          erros.push(`${ticker}: token inválido`);
+          erros.push({ ticker, status: 401, msg: 'token inválido' });
           break; // se o token está inválido, para tudo
         }
         if (response.status === 402) {
-          erros.push(`${ticker}: requer plano pago`);
+          erros.push({ ticker, status: 402, msg: 'requer plano pago' });
           continue;
         }
         if (response.status === 404) {
-          erros.push(`${ticker}: ticker não encontrado na BRAPI`);
+          erros.push({ ticker, status: 404, msg: 'ticker não encontrado na BRAPI' });
           continue;
         }
         if (response.status === 429) {
-          erros.push(`${ticker}: limite de requisições atingido`);
-          await new Promise(r => setTimeout(r, 2000)); // espera 2s
+          erros.push({ ticker, status: 429, msg: 'limite de requisições atingido' });
+          await new Promise(r => setTimeout(r, 2000));
           continue;
         }
-        // Para qualquer outro erro (incluindo 400), pega a mensagem do servidor
         let detalhes = '';
         try {
           const errData = await response.json();
@@ -559,13 +561,13 @@ async function atualizarCotacoes() {
         } catch {
           detalhes = `HTTP ${response.status}`;
         }
-        erros.push(`${ticker}: ${detalhes}`);
+        erros.push({ ticker, status: response.status, msg: detalhes });
         continue;
       }
 
       const data = await response.json();
       if (data.error) {
-        erros.push(`${ticker}: ${data.message || 'erro da API'}`);
+        erros.push({ ticker, status: 'erro', msg: data.message || 'erro da API' });
         continue;
       }
 
@@ -578,15 +580,13 @@ async function atualizarCotacoes() {
             atualizados++;
           }
         } else {
-          erros.push(`${ticker}: sem cotação válida`);
+          erros.push({ ticker, status: 'sem-cotacao', msg: 'API não retornou preço' });
         }
       }
     } catch (e) {
-      // CORS, rede, etc
-      erros.push(`${ticker}: ${e.message}`);
+      erros.push({ ticker, status: 'rede', msg: e.message });
     }
 
-    // Pequeno delay entre requisições para não saturar a BRAPI (250ms)
     if (i < tickers.length - 1) {
       await new Promise(r => setTimeout(r, 250));
     }
@@ -594,6 +594,7 @@ async function atualizarCotacoes() {
 
   btn.classList.remove('syncing');
   btn.querySelector('.label').textContent = 'Atualizar cotações';
+  ultimosErros = erros;
 
   if (atualizados > 0) {
     lastUpdate = new Date().toISOString();
@@ -604,15 +605,87 @@ async function atualizarCotacoes() {
     if (erros.length === 0) {
       showToast(`${atualizados} cotações atualizadas com sucesso`, 'success');
     } else {
-      showToast(`${atualizados} atualizados · ${erros.length} com erro (veja Console)`, 'success');
-      console.warn('Erros na atualização:', erros);
+      showToastComErros(`${atualizados} atualizados · ${erros.length} com erro`, 'success');
     }
   } else {
-    // Nenhum atualizado, mostra o primeiro erro
-    const primeiroErro = erros[0] || 'Erro desconhecido';
-    showToast(`Erro: ${primeiroErro}`, 'error');
-    console.error('Todos os erros:', erros);
+    showToastComErros(`Nenhum ativo atualizado (${erros.length} erros)`, 'error');
   }
+}
+
+function showToastComErros(msg, tipo) {
+  const t = document.getElementById('toast');
+  const icon = tipo === 'success' ? '✓' : '×';
+  t.innerHTML = `
+    <div class="icon">${icon}</div>
+    <div style="flex:1;">
+      <div style="font-weight:600;">${msg}</div>
+      <button onclick="mostrarDetalhesErros()" style="background:transparent;border:none;color:var(--accent);font-size:11px;font-weight:700;text-decoration:underline;cursor:pointer;padding:0;margin-top:4px;font-family:inherit;">Ver detalhes</button>
+    </div>
+  `;
+  t.className = `toast show ${tipo}`;
+  setTimeout(() => { t.className = `toast ${tipo}`; }, 8000);
+}
+
+function mostrarDetalhesErros() {
+  if (ultimosErros.length === 0) {
+    alert('Sem erros para mostrar.');
+    return;
+  }
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  // Agrupa por mensagem de erro
+  const agrupados = {};
+  ultimosErros.forEach(e => {
+    const chave = `${e.status} · ${e.msg}`;
+    if (!agrupados[chave]) agrupados[chave] = [];
+    agrupados[chave].push(e.ticker);
+  });
+
+  // Diagnóstico automático baseado nos erros
+  let diagnostico = '';
+  const tem400 = ultimosErros.some(e => e.status === 400);
+  const tem401 = ultimosErros.some(e => e.status === 401);
+  const tem402 = ultimosErros.some(e => e.status === 402);
+  const tem404 = ultimosErros.some(e => e.status === 404);
+  const temRede = ultimosErros.some(e => e.status === 'rede');
+
+  if (tem401) {
+    diagnostico = '<strong>Token inválido.</strong> Vai no botão ⚙ no topo e cola um token novo do brapi.dev.';
+  } else if (tem402) {
+    diagnostico = '<strong>Plano grátis insuficiente.</strong> A BRAPI mudou as regras e agora cobra para alguns ativos. Use a edição manual na aba Carteira.';
+  } else if (tem400) {
+    diagnostico = '<strong>Requisição rejeitada (HTTP 400).</strong> Pode ser que seu token está expirado/incorreto, ou a BRAPI mudou regras. Tenta gerar um token novo em brapi.dev/dashboard.';
+  } else if (tem404) {
+    diagnostico = '<strong>Tickers não encontrados.</strong> Verifique se os códigos estão corretos.';
+  } else if (temRede) {
+    diagnostico = '<strong>Falha de rede ou CORS.</strong> Se você está rodando local (file://), suba para o GitHub Pages.';
+  }
+
+  modal.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;padding:28px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;">
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:6px;">Detalhes dos erros</h3>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:18px;">${ultimosErros.length} erro(s) na última tentativa</p>
+
+      ${diagnostico ? `<div style="background:rgba(251,191,36,0.1);border-left:3px solid var(--warn);padding:14px 16px;border-radius:8px;margin-bottom:18px;font-size:13px;color:var(--text);line-height:1.5;">${diagnostico}</div>` : ''}
+
+      <div style="display:flex;flex-direction:column;gap:8px;font-family:'DM Mono',monospace;font-size:12px;">
+        ${Object.entries(agrupados).map(([erro, tickers]) => `
+          <div style="background:var(--bg-2);padding:12px 14px;border-radius:8px;border:1px solid var(--border);">
+            <div style="color:var(--danger);font-weight:700;margin-bottom:6px;">${erro}</div>
+            <div style="color:var(--text-2);font-size:11px;">${tickers.join(', ')}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:10px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Fechar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
 }
 
 function formatarLastUpdate() {
