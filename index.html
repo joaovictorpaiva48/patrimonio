@@ -256,6 +256,7 @@ footer a { color: var(--accent); text-decoration: none; }
 
   <nav class="tabs">
     <button class="tab active" data-panel="oportunidades">Oportunidades</button>
+    <button class="tab" data-panel="metas">Metas</button>
     <button class="tab" data-panel="carteira">Minha Carteira</button>
   </nav>
 
@@ -274,6 +275,64 @@ footer a { color: var(--accent); text-decoration: none; }
     </div>
 
     <div class="opportunities-grid" id="oppList"></div>
+  </section>
+
+  <!-- ============ PANEL: METAS ============ -->
+  <section class="panel" id="metas">
+    <div class="section-header">
+      <h2 class="section-title">Sua <span>meta</span> de renda passiva</h2>
+      <p class="section-sub">R$ 100 por FII consistente · R$ 2.000/mês de renda total · aporte de R$ 2.000/mês</p>
+    </div>
+
+    <!-- BARRA DE PROGRESSO GERAL -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Meta principal</div>
+          <div style="font-size:24px;font-weight:700;letter-spacing:-0.02em;">R$ 2.000/mês em dividendos</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-3);">Hoje você recebe</div>
+          <div style="font-size:28px;font-weight:800;color:var(--accent);letter-spacing:-0.02em;" id="metaRendaAtual">R$ 0/mês</div>
+        </div>
+      </div>
+
+      <div style="height:14px;background:var(--bg-2);border-radius:7px;overflow:hidden;position:relative;border:1px solid var(--border);">
+        <div id="metaProgressBar" style="height:100%;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width 0.8s ease;width:0%;border-radius:7px;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text-3);">
+        <span>R$ 0</span>
+        <span id="metaPctText" style="color:var(--accent);font-weight:700;">0% da meta</span>
+        <span>R$ 2.000</span>
+      </div>
+
+      <div id="metaSimulacao" style="margin-top:24px;padding:18px 20px;background:var(--bg-2);border-radius:10px;border-left:3px solid var(--accent);"></div>
+    </div>
+
+    <!-- METAS POR FII -->
+    <div class="section-header" style="margin-top:32px;margin-bottom:18px;">
+      <h2 style="font-size:22px;font-weight:700;letter-spacing:-0.02em;">Meta por FII <span style="color:var(--accent);">— R$ 100/mês cada</span></h2>
+      <p class="section-sub">FIIs prioritários · MXRF11 e HGBS11 não compra nem vende</p>
+    </div>
+
+    <div id="metasFIIs"></div>
+
+    <!-- SIMULADOR DE APORTE -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-top:32px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(197,255,74,0.15);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:18px;">⚡</div>
+        <h3 style="font-size:20px;font-weight:700;letter-spacing:-0.015em;">Onde aportar este mês</h3>
+      </div>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Distribuição sugerida do aporte mensal entre os FIIs prioritários, priorizando os mais distantes da meta com bons fundamentos.</p>
+
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap;">
+        <label style="font-size:13px;color:var(--text-2);font-weight:600;">Aporte do mês</label>
+        <input type="number" id="aporteInput" value="2000" min="0" step="100" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'DM Mono',monospace;font-size:16px;color:var(--accent);font-weight:700;width:160px;" oninput="renderSugestaoAporte()">
+        <span style="font-size:13px;color:var(--text-3);">distribua entre os FIIs prioritários</span>
+      </div>
+
+      <div id="sugestaoAporte"></div>
+    </div>
   </section>
 
   <!-- ============ PANEL: CARTEIRA ============ -->
@@ -574,6 +633,8 @@ function scoreOportunidade(ativo) {
   // CRITÉRIO 4: filtros qualitativos negativos
   if (ativo.ticker === 'BBAS3') return null; // turbulência política, DY caiu
   if (ativo.ticker === 'KLBN4') return null; // posição irrelevante, melhor migrar para KLBN11
+  if (ativo.ticker === 'MXRF11') return null; // congelado: não compra nem vende
+  if (ativo.ticker === 'HGBS11') return null; // congelado: ciclo de juros não favorece
   if (ativo.ticker === 'CXSE3' && ativo.anosHist && ativo.anosHist < 7) return null;
 
   // PONTUAÇÃO
@@ -810,11 +871,297 @@ function atualizarPreco(idx, novoPreco) {
   showToast(`${carteira[idx].ticker} atualizado para ${fmt(valor)}`, 'success');
 }
 
+// ============ METAS DE RENDA ============
+const META_POR_FII = 100;        // R$ 100/mês por FII
+const META_TOTAL_MENSAL = 2000;  // R$ 2.000/mês total
+const APORTE_PADRAO = 2000;      // R$ 2.000/mês de aporte
+
+// FIIs prioritários (consistentes, no ciclo de juros atual)
+const FIIS_PRIORITARIOS = ['HGRE11', 'HGLG11', 'HGRU11', 'KNCR11', 'XPLG11', 'XPML11', 'BRCO11', 'TRXF11', 'VISC11'];
+// FIIs congelados (não compra nem vende)
+const FIIS_CONGELADOS = ['MXRF11', 'HGBS11'];
+
+function divMensalEstimado(ativo) {
+  // Estimativa de dividendo MENSAL recorrente (exclui extraordinários)
+  // Para FIIs: pega o pagamento recorrente do histórico
+  const recorrente = {
+    'HGRE11': 0.85, 'HGLG11': 1.10, 'XPLG11': 0.82, 'VISC11': 0.82,
+    'TRXF11': 0.93, 'XPML11': 0.92, 'HGBS11': 0.17, 'HGRU11': 0.95,
+    'BRCO11': 0.90, 'KNCR11': 1.10, 'MXRF11': 0.10
+  };
+  if (recorrente[ativo.ticker]) return recorrente[ativo.ticker];
+  // Para ações, divide o anual por 12
+  return ativo.div / 12;
+}
+
+function renderMetas() {
+  const rv = carteira.filter(a => a.tipo !== 'etf');
+
+  // === RENDA ATUAL MENSAL (recorrente) ===
+  let rendaMensalFIIs = 0;
+  let rendaMensalAcoes = 0;
+  rv.forEach(a => {
+    const dm = divMensalEstimado(a) * a.qtd;
+    if (a.tipo === 'fii') rendaMensalFIIs += dm;
+    else rendaMensalAcoes += dm;
+  });
+  const rendaMensalTotal = rendaMensalFIIs + rendaMensalAcoes;
+
+  // === BARRA DE PROGRESSO GERAL ===
+  const pctMeta = Math.min(100, (rendaMensalTotal / META_TOTAL_MENSAL) * 100);
+  document.getElementById('metaRendaAtual').textContent = fmt(rendaMensalTotal) + '/mês';
+  document.getElementById('metaProgressBar').style.width = pctMeta + '%';
+  document.getElementById('metaPctText').textContent = pctMeta.toFixed(1).replace('.', ',') + '% da meta';
+
+  // === SIMULAÇÃO DE QUANDO BATE A META ===
+  const dyMedio = calcularDYMedio();
+  const patrimAtual = rv.reduce((s, a) => s + a.qtd * a.atual, 0);
+  const mesesParaMeta = calcularMesesParaMeta(patrimAtual, dyMedio, APORTE_PADRAO, META_TOTAL_MENSAL);
+  const anos = Math.floor(mesesParaMeta / 12);
+  const mesesRest = mesesParaMeta % 12;
+  const faltaRenda = META_TOTAL_MENSAL - rendaMensalTotal;
+
+  document.getElementById('metaSimulacao').innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Falta</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text);margin-top:2px;">R$ ${faltaRenda.toFixed(0)}/mês</div>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">Com R$ 2.000/mês de aporte</div>
+        <div style="font-size:20px;font-weight:700;color:var(--accent);margin-top:2px;">${anos}a ${mesesRest}m</div>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;">DY médio carteira</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text);margin-top:2px;">${pct(dyMedio*100)}</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;font-size:13px;color:var(--text-2);line-height:1.55;">
+      <strong style="color:var(--text);">Composição atual:</strong> R$ ${rendaMensalFIIs.toFixed(0)}/mês de FIIs + R$ ${rendaMensalAcoes.toFixed(0)}/mês de ações (recorrente, sem dividendos extraordinários como o pagamento grande de BBSE3 em março).
+    </div>
+  `;
+
+  // === METAS POR FII ===
+  renderMetasFIIs();
+
+  // === SUGESTÃO DE APORTE ===
+  renderSugestaoAporte();
+}
+
+function calcularDYMedio() {
+  const rv = carteira.filter(a => a.tipo !== 'etf');
+  let renda = 0, valor = 0;
+  rv.forEach(a => { renda += a.qtd * a.div; valor += a.qtd * a.atual; });
+  return valor > 0 ? renda / valor : 0;
+}
+
+function calcularMesesParaMeta(capitalInicial, dyAnual, aporteMensal, rendaAlvoMensal) {
+  const taxaMensal = dyAnual / 12;
+  let capital = capitalInicial;
+  let meses = 0;
+  while (capital * taxaMensal < rendaAlvoMensal && meses < 600) {
+    capital = capital * (1 + taxaMensal) + aporteMensal;
+    meses++;
+  }
+  return meses;
+}
+
+function renderMetasFIIs() {
+  const fiis = carteira.filter(a => a.tipo === 'fii');
+
+  // Ordena: prioritários por % distância da meta (mais perto primeiro), depois congelados
+  const ordenados = [...fiis].sort((a, b) => {
+    const aCong = FIIS_CONGELADOS.includes(a.ticker);
+    const bCong = FIIS_CONGELADOS.includes(b.ticker);
+    if (aCong !== bCong) return aCong ? 1 : -1;
+    const rendaA = divMensalEstimado(a) * a.qtd;
+    const rendaB = divMensalEstimado(b) * b.qtd;
+    return rendaB - rendaA;
+  });
+
+  const html = ordenados.map(a => {
+    const congelado = FIIS_CONGELADOS.includes(a.ticker);
+    const rendaMensal = divMensalEstimado(a) * a.qtd;
+    const pctMeta = Math.min(100, (rendaMensal / META_POR_FII) * 100);
+    const falta = Math.max(0, META_POR_FII - rendaMensal);
+    const divPorCota = divMensalEstimado(a);
+    const cotasFalta = divPorCota > 0 ? Math.ceil(falta / divPorCota) : 0;
+    const investNecessario = cotasFalta * a.atual;
+
+    let statusBadge = '';
+    let progressColor = 'var(--accent)';
+    if (congelado) {
+      statusBadge = '<span style="background:rgba(168,162,158,0.15);color:var(--text-3);padding:3px 8px;border-radius:6px;font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;text-transform:uppercase;">⏸ Congelado</span>';
+      progressColor = 'var(--text-3)';
+    } else if (pctMeta >= 100) {
+      statusBadge = '<span style="background:var(--success-bg);color:var(--success);padding:3px 8px;border-radius:6px;font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;text-transform:uppercase;">✓ Meta atingida</span>';
+    } else if (pctMeta >= 70) {
+      statusBadge = '<span style="background:rgba(251,191,36,0.15);color:var(--warn);padding:3px 8px;border-radius:6px;font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;text-transform:uppercase;">Quase lá</span>';
+      progressColor = 'var(--warn)';
+    } else {
+      statusBadge = '<span style="background:rgba(239,68,68,0.15);color:var(--danger);padding:3px 8px;border-radius:6px;font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;text-transform:uppercase;">Distante</span>';
+      progressColor = 'var(--danger)';
+    }
+
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:12px;${congelado ? 'opacity:0.65;' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;">${a.ticker}</div>
+            ${statusBadge}
+          </div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;">
+            <div style="text-align:right;">
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;">Recebe/mês</div>
+              <div style="font-size:18px;font-weight:700;color:${pctMeta >= 100 ? 'var(--success)' : 'var(--text)'};">R$ ${rendaMensal.toFixed(2).replace('.',',')}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;">Meta</div>
+              <div style="font-size:18px;font-weight:700;color:var(--text-2);">R$ ${META_POR_FII.toFixed(0)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-3);text-transform:uppercase;">Progresso</div>
+              <div style="font-size:18px;font-weight:700;color:${progressColor};">${pctMeta.toFixed(0)}%</div>
+            </div>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;background:${progressColor};width:${pctMeta}%;transition:width 0.5s ease;"></div>
+        </div>
+        ${!congelado && cotasFalta > 0 ? `
+          <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:13px;color:var(--text-2);flex-wrap:wrap;gap:8px;">
+            <span>Falta R$ ${falta.toFixed(2).replace('.',',')}/mês</span>
+            <span><strong style="color:var(--text);">+${cotasFalta} cotas</strong> = <strong style="color:var(--accent);">R$ ${investNecessario.toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</strong> investir</span>
+          </div>
+        ` : ''}
+        ${congelado ? `
+          <div style="margin-top:10px;font-size:12px;color:var(--text-3);font-style:italic;">
+            ${a.ticker === 'MXRF11' ? 'Não compra nem vende — posição mantida do passado.' : 'Não compra nem vende — qualidade do ativo questionada pelo ciclo atual.'}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('metasFIIs').innerHTML = html;
+}
+
+function renderSugestaoAporte() {
+  const aporte = parseFloat(document.getElementById('aporteInput').value) || 0;
+  if (aporte <= 0) {
+    document.getElementById('sugestaoAporte').innerHTML = '<p style="color:var(--text-3);font-size:13px;">Digite o valor do seu aporte.</p>';
+    return;
+  }
+
+  const fiis = carteira.filter(a => a.tipo === 'fii' && !FIIS_CONGELADOS.includes(a.ticker));
+
+  // Calcula "gap" de cada FII (quanto falta para meta)
+  // Distribui o aporte priorizando: 1) FIIs mais distantes da meta, 2) DY consistente
+  const gaps = fiis.map(a => {
+    const rendaMensal = divMensalEstimado(a) * a.qtd;
+    const gap = Math.max(0, META_POR_FII - rendaMensal);
+    const divPorCota = divMensalEstimado(a);
+    const dyAnualReal = a.div > 0 ? (a.div / a.atual) : 0;
+    return {
+      ticker: a.ticker,
+      preco: a.atual,
+      rendaMensal,
+      gap,
+      pctMeta: (rendaMensal / META_POR_FII) * 100,
+      divPorCota,
+      dyAnual: dyAnualReal * 100,
+      qtdAtual: a.qtd
+    };
+  })
+  .filter(g => g.gap > 0) // Só os que não atingiram meta
+  .sort((a, b) => {
+    // Score combinado: mais distante + maior DY = mais prioritário
+    const scoreA = (a.gap / META_POR_FII) * 0.6 + (a.dyAnual / 15) * 0.4;
+    const scoreB = (b.gap / META_POR_FII) * 0.6 + (b.dyAnual / 15) * 0.4;
+    return scoreB - scoreA;
+  });
+
+  // Aloca o aporte: estratégia simples — compra 1 cota por vez, escolhendo o FII com maior score
+  // até esgotar o aporte
+  const alocacao = gaps.map(g => ({ ...g, cotasComprar: 0, valorAlocado: 0 }));
+  let restante = aporte;
+  let iteracoes = 0;
+
+  while (restante > 0 && iteracoes < 200) {
+    // Pega o que tem maior gap e cabe no orçamento
+    const candidato = alocacao
+      .filter(a => a.gap > 0 && a.preco <= restante)
+      .sort((a, b) => b.gap - a.gap)[0];
+
+    if (!candidato) break;
+
+    candidato.cotasComprar++;
+    candidato.valorAlocado += candidato.preco;
+    candidato.gap = Math.max(0, candidato.gap - candidato.divPorCota);
+    restante -= candidato.preco;
+    iteracoes++;
+  }
+
+  const ativosAlocados = alocacao.filter(a => a.cotasComprar > 0);
+
+  if (ativosAlocados.length === 0) {
+    document.getElementById('sugestaoAporte').innerHTML = `
+      <div style="padding:18px;background:var(--bg-2);border-radius:10px;text-align:center;color:var(--text-2);font-size:14px;">
+        ${gaps.length === 0
+          ? 'Todos os FIIs prioritários já atingiram a meta de R$ 100/mês! Hora de aumentar as metas ou aportar em ações.'
+          : 'O valor do aporte é menor que o preço de uma cota dos FIIs prioritários.'}
+      </div>
+    `;
+    return;
+  }
+
+  const totalAlocado = ativosAlocados.reduce((s, a) => s + a.valorAlocado, 0);
+  const sobra = aporte - totalAlocado;
+  const novaRendaTotal = ativosAlocados.reduce((s, a) => s + a.divPorCota * a.cotasComprar, 0);
+
+  const html = ativosAlocados.map((a, i) => {
+    const novaRendaFII = a.divPorCota * (a.qtdAtual + a.cotasComprar);
+    const novoPct = Math.min(100, (novaRendaFII / META_POR_FII) * 100);
+    return `
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);align-items:center;">
+        <div style="font-size:14px;font-weight:800;color:var(--accent);min-width:24px;">${i + 1}</div>
+        <div>
+          <div style="font-size:15px;font-weight:700;">${a.ticker}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:2px;font-family:'DM Mono',monospace;">
+            ${a.cotasComprar} cota${a.cotasComprar > 1 ? 's' : ''} × ${fmt(a.preco)} · acrescenta R$ ${(a.divPorCota * a.cotasComprar).toFixed(2).replace('.',',')}/mês
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-3);text-transform:uppercase;">Após</div>
+          <div style="font-size:13px;font-weight:700;color:${novoPct >= 100 ? 'var(--success)' : 'var(--text)'};">${novoPct.toFixed(0)}%</div>
+        </div>
+        <div style="text-align:right;font-size:16px;font-weight:700;color:var(--accent);">${fmt(a.valorAlocado)}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('sugestaoAporte').innerHTML = `
+    ${html}
+    <div style="display:flex;justify-content:space-between;padding:16px 0;margin-top:8px;border-top:2px solid var(--border);font-size:14px;">
+      <div>
+        <strong style="color:var(--text);">Total alocado:</strong>
+        <span style="color:var(--text-2);"> ${fmt(totalAlocado)}</span>
+        ${sobra > 0 ? `<span style="color:var(--text-3);"> · sobra R$ ${sobra.toFixed(2).replace('.',',')}</span>` : ''}
+      </div>
+      <div style="text-align:right;">
+        <strong style="color:var(--accent);">+${fmt(novaRendaTotal)}/mês</strong>
+        <span style="color:var(--text-3);"> de renda nova</span>
+      </div>
+    </div>
+  `;
+}
+
 // ============ RENDERIZAR TUDO ============
 function renderTudo() {
   renderDashboard();
   renderOportunidades();
   renderCarteira();
+  renderMetas();
   document.getElementById('lastUpdateText').textContent = formatarLastUpdate();
 }
 
